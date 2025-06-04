@@ -402,7 +402,8 @@ class OptionHedger:
         """
         return pd.DataFrame(self.hedge_log).set_index('timestamp')
 
-    def parse_option_symbol(self, option_symbol: str):
+    @staticmethod
+    def parse_option_symbol(option_symbol: str):
         """
         Parse the option symbol to extract the underlying symbol, expiration date, option type, and strike price.
 
