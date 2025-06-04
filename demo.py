@@ -120,20 +120,19 @@ stk_prices = stk_prices.ffill()  # Only forward fill stocks
 
 # Find first valid stock price timestamp
 first_valid_stock_ts = stk_prices.first_valid_index()
-
+print("Stock price at first_valid_stock_ts:", stk_prices.loc[first_valid_stock_ts, 'price'])
 # Build underlying_prices Series starting from first valid stock price
 valid_timestamps = all_timestamps[all_timestamps >= first_valid_stock_ts]
 underlying_prices = pd.Series(stk_prices.loc[valid_timestamps, 'price'], 
-                            index=pd.to_datetime(valid_timestamps, unit='ms'))
+                            index=valid_timestamps)  # Keep as integer timestamps
 
 # Build option_prices DataFrame with MultiIndex
 option_data = []
-for timestamp in valid_timestamps:  # Only use timestamps after first valid stock price
-    dt = pd.to_datetime(timestamp, unit='ms')
+for timestamp in valid_timestamps:
     # Add call option data if we have a price
     if not pd.isna(call_prices.loc[timestamp, 'price']):
         option_data.append({
-            'timestamp': dt,
+            'timestamp': timestamp,  # Keep as integer timestamp
             'contract_id': c_option_symbol,
             'mid_price': call_prices.loc[timestamp, 'price'],
             'strike': call_data['strike'],
@@ -143,7 +142,7 @@ for timestamp in valid_timestamps:  # Only use timestamps after first valid stoc
     # Add put option data if we have a price
     if not pd.isna(put_prices.loc[timestamp, 'price']):
         option_data.append({
-            'timestamp': dt,
+            'timestamp': timestamp,  # Keep as integer timestamp
             'contract_id': p_option_symbol,
             'mid_price': put_prices.loc[timestamp, 'price'],
             'strike': put_data['strike'],
@@ -155,6 +154,13 @@ for timestamp in valid_timestamps:  # Only use timestamps after first valid stoc
 options_df = pd.DataFrame(option_data)
 option_prices = options_df.set_index(['timestamp', 'contract_id'])
 
+print(f"First valid stock timestamp (ms): {first_valid_stock_ts}")
+print(f"Stock price at first timestamp: {stk_prices.loc[first_valid_stock_ts, 'price']}")
+print("\nUnderlying prices head:")
+print(underlying_prices.head())
+print("\nOption prices head:")
+print(option_prices.head())
+
 # ---- INSTANTIATE THE OptionHedger ----
 hedger = OptionHedger(
     underlying_prices=underlying_prices,
@@ -163,8 +169,6 @@ hedger = OptionHedger(
     q=0.0,
     delta_tolerance=0.01
 )
-print(hedger.underlying_prices.head())
-print(hedger.option_prices.head())
 
 # Find all timestamps where both call and put have data, after first valid stock price
 call_times = set(option_prices.xs(c_option_symbol, level='contract_id', drop_level=False).index.get_level_values(0))
@@ -180,7 +184,7 @@ t0 = common_times[0]  # This will now be after the first valid stock price
 t0_idx = list(hedger.underlying_prices.index).index(t0)
 hedger.current_step = t0_idx
 
-print(f"Opened straddle at {t0}:")
+print(f"\nOpening straddle at timestamp {t0}:")
 print(f"  Call: {c_option_symbol}, Strike: {call_data['strike']}, Expiry: {call_data['expiration_date'].date()}")
 print(f"  Put: {p_option_symbol}, Strike: {put_data['strike']}, Expiry: {put_data['expiration_date'].date()}")
 print(f"  Underlying Price: ${underlying_prices.loc[t0]:.2f}")

@@ -249,7 +249,11 @@ class OptionHedger:
             expiry = row['expiry']
             otype  = row['type']
 
-            T = max((expiry - self.timestamps[self.current_step]).days, 0) / 252
+            # Convert millisecond timestamps to years to expiry
+            current_ms = self.timestamps[self.current_step]
+            expiry_ms = int(expiry.timestamp() * 1000)
+            T = max((expiry_ms - current_ms) / (1000 * 3600 * 24 * 365), 0)
+
             if T <= 0:
                 continue
 
@@ -350,11 +354,13 @@ class OptionHedger:
             otype  = leg['type']
 
             # Determine current price:
-            if timestamp >= expiry:
+            # Convert millisecond timestamps for comparison
+            expiry_ms = int(expiry.timestamp() * 1000)
+            if timestamp >= expiry_ms:
                 # intrinsic at expiry
                 cur_price = max(0.0, (S_t - strike)) if otype == 'call' else max(0.0, (strike - S_t))
             else:
-                T = max((expiry - timestamp).days, 0) / 252
+                T = max((expiry_ms - timestamp) / (1000 * 3600 * 24 * 365), 0)
                 sigma = iv_dict.get(cid, None)
                 if sigma is None:
                     # If we don't have this contract's IV, assume price = entry (i.e. zero PnL)
