@@ -114,22 +114,21 @@ put_prices.loc[put_df['timestamp'], 'price'] = put_df['close'].values
 stk_prices.loc[stk_df['timestamp'], 'price'] = stk_df['close'].values
 
 # Forward fill missing values (use previous price when no new price available)
-call_prices = call_prices.ffill()
-put_prices = put_prices.ffill()
-stk_prices = stk_prices.ffill()
+call_prices = call_prices.ffill().bfill()
+put_prices = put_prices.ffill().bfill()
+stk_prices = stk_prices.ffill()  # Only forward fill stocks
 
-# Backward fill missing values (use next price when no new price available)
-call_prices = call_prices.bfill()
-put_prices = put_prices.bfill()
-stk_prices = stk_prices.bfill()
+# Find first valid stock price timestamp
+first_valid_stock_ts = stk_prices.first_valid_index()
 
-
-# Build underlying_prices Series
-underlying_prices = pd.Series(stk_prices['price'], index=pd.to_datetime(stk_prices.index, unit='ms'))
+# Build underlying_prices Series starting from first valid stock price
+valid_timestamps = all_timestamps[all_timestamps >= first_valid_stock_ts]
+underlying_prices = pd.Series(stk_prices.loc[valid_timestamps, 'price'], 
+                            index=pd.to_datetime(valid_timestamps, unit='ms'))
 
 # Build option_prices DataFrame with MultiIndex
 option_data = []
-for timestamp in all_timestamps:
+for timestamp in valid_timestamps:  # Only use timestamps after first valid stock price
     dt = pd.to_datetime(timestamp, unit='ms')
     # Add call option data if we have a price
     if not pd.isna(call_prices.loc[timestamp, 'price']):
@@ -164,13 +163,22 @@ hedger = OptionHedger(
     q=0.0,
     delta_tolerance=0.01
 )
-print(underlying_prices.head())
-print(option_prices.head())
+print(hedger.underlying_prices.head())
+print(hedger.option_prices.head())
 
-# ---- OPEN AN INITIAL STRADDLE AT t0 (1 CALL + 1 PUT) ----
-t0 = pd.to_datetime(call_prices.index[0], unit='ms')
-hedger.open_position(timestamp=t0, contract_id=c_option_symbol, quantity=1)  # long 1 CALL
-hedger.open_position(timestamp=t0, contract_id=p_option_symbol, quantity=1)  # long 1 PUT
+# Find all timestamps where both call and put have data, after first valid stock price
+call_times = set(option_prices.xs(c_option_symbol, level='contract_id', drop_level=False).index.get_level_values(0))
+put_times = set(option_prices.xs(p_option_symbol, level='contract_id', drop_level=False).index.get_level_values(0))
+common_times = sorted(list(call_times & put_times))
+
+if not common_times:
+    raise ValueError("No common timestamps between call and put options!")
+
+t0 = common_times[0]  # This will now be after the first valid stock price
+
+# Set hedger's current step to match t0
+t0_idx = list(hedger.underlying_prices.index).index(t0)
+hedger.current_step = t0_idx
 
 print(f"Opened straddle at {t0}:")
 print(f"  Call: {c_option_symbol}, Strike: {call_data['strike']}, Expiry: {call_data['expiration_date'].date()}")
