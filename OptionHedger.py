@@ -3,12 +3,13 @@ import numpy as np
 from scipy.optimize import brentq
 from scipy.stats import norm
 import datetime
+import re
 
 
 class OptionHedger:
     """
     A backtester‐style manager that:
-      - Holds a full option chain’s historical prices (for every timestamp).
+      - Holds a full option chain's historical prices (for every timestamp).
       - Keeps track of open positions (option legs + underlying hedge).
       - On each call to forward(), updates net delta and rebalances underlying if needed.
     """
@@ -65,7 +66,7 @@ class OptionHedger:
         self.delta_tolerance = delta_tolerance
 
         # 5) Internal state
-        #   - Keep track of which timestamp we’re at (integer pointer into the sorted index)
+        #   - Keep track of which timestamp we're at (integer pointer into the sorted index)
         self.timestamps = list(self.underlying_prices.index)
         self.current_step = 0
 
@@ -97,7 +98,7 @@ class OptionHedger:
           6) Record PnL (unrealized on options + PnL on underlying hedge + cash).
           7) Increment current_step, append to logs.
         """
-        # 0) If we’re already at the final timestamp, do nothing
+        # 0) If we're already at the final timestamp, do nothing
         if self.current_step >= len(self.timestamps):
             raise IndexError("Already at end of price series.")
 
@@ -105,7 +106,7 @@ class OptionHedger:
         t = self.timestamps[self.current_step]
         S_t = self.underlying_prices.loc[t]
 
-        # Extract all contracts’ mid‐prices at this timestamp
+        # Extract all contracts' mid‐prices at this timestamp
         #   option_slice is a DataFrame indexed by contract_id with columns ['mid_price', 'strike', 'expiry', 'type']
         option_slice = self.option_prices.loc[t]  # this is a DataFrame (index=contract_id)
 
@@ -130,7 +131,7 @@ class OptionHedger:
                 delta_i = self._intrinsic_delta(S_t, strike, otype)
             else:
                 sigma = iv_dict.get(cid, None)
-                # If we don’t have an IV (e.g. missing price, stale), you could skip or carry forward.
+                # If we're don't have an IV (e.g. missing price, stale), you could skip or carry forward.
                 if sigma is None:
                     delta_i = 0.0
                 else:
@@ -257,7 +258,7 @@ class OptionHedger:
                 return self._bs_price(S_t, K, T, sigma, otype) - price
 
             try:
-                # Use Brent’s method on [1e-6, 5.0] as plausible vol range
+                # Use Brent's method on [1e-6, 5.0] as plausible vol range
                 implied_vol = brentq(f, 1e-6, 5.0, maxiter=100, xtol=1e-6)
                 iv_dict[cid] = implied_vol
             except (ValueError, RuntimeError):
@@ -333,7 +334,7 @@ class OptionHedger:
 
     def _mark_to_market(self, timestamp, S_t, iv_dict):
         """
-        Compute portfolio’s mark‐to‐market equity:
+        Compute portfolio's mark‐to‐market equity:
           - Option PnL: for each open leg, (current mid_price – entry_price) × qty
           - Hedge PnL: current hedged_shares × S_t   (plus any entry/exit cash stored in self.cash)
         Returns a single float = total equity.
@@ -356,7 +357,7 @@ class OptionHedger:
                 T = max((expiry - timestamp).days, 0) / 252
                 sigma = iv_dict.get(cid, None)
                 if sigma is None:
-                    # If we don’t have this contract’s IV, assume price = entry (i.e. zero PnL)
+                    # If we don't have this contract's IV, assume price = entry (i.e. zero PnL)
                     cur_price = entry
                 else:
                     cur_price = self._bs_price(S_t, strike, T, sigma, otype)
@@ -400,3 +401,41 @@ class OptionHedger:
         Returns a pd.DataFrame of hedge trades logged.
         """
         return pd.DataFrame(self.hedge_log).set_index('timestamp')
+
+    def parse_option_symbol(self, option_symbol: str):
+        """
+        Parse the option symbol to extract the underlying symbol, expiration date, option type, and strike price.
+
+        Parameters
+        ----------
+        option_symbol : str
+            The option symbol in the format 'O:<SYMBOL><YYMMDD><C/P><strike*1000>'.
+
+        Returns
+        -------
+        dict
+            A dictionary containing 'underlying_sym', 'expiration_date', 'option_type', and 'strike'.
+        """
+        # Parse underlying symbol (chars until first digit)
+        first_digit_idx = re.search(r'\d', option_symbol).start()
+        underlying_sym = option_symbol[2:first_digit_idx]
+
+        # Parse expiration date (YYMMDD)
+        exp_str = option_symbol[first_digit_idx:first_digit_idx+6]
+        yy, mm, dd = int(exp_str[:2]), int(exp_str[2:4]), int(exp_str[4:6])
+        expiration_date = datetime.datetime(2000 + yy, mm, dd)
+
+        # Parse option type (C or P)
+        opt_type_char = option_symbol[first_digit_idx+6]
+        option_type = 'call' if opt_type_char == 'C' else 'put'
+
+        # Parse strike (last digits → float dollars)
+        strike_str = option_symbol[first_digit_idx+7:]
+        strike = int(strike_str) / 1000.0
+
+        return {
+            'underlying_sym': underlying_sym,
+            'expiration_date': expiration_date,
+            'option_type': option_type,
+            'strike': strike
+        }

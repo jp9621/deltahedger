@@ -28,30 +28,18 @@ def implied_vol(S, K, T, r, price, tol=1e-6, max_iter=60):
 # ---- USER INPUT ----
 API_KEY = 'w2chIPf4EUplQqQv6b8Nxnn8GQV8pfGC'
 # Polygon‐format option ticker (for example: AAPL June 2025 195 call)
-option_symbol = 'O:AAPL250530C00195000'
+c_option_symbol = 'O:SPY250630C00600000'
+p_option_symbol = 'O:SPY250630P00595000'
 date_str = '2025-05-23'   # trading day to fetch minute data
 r = 0.01                  # annual risk‐free rate
 
 
-# ---- PARSE UNDERLYING SYMBOL (chars until first digit) ----
-first_digit_idx = re.search(r'\d', option_symbol).start()
-underlying_sym = option_symbol[2:first_digit_idx]  # e.g. "AAPL"
-
-
-# ---- PARSE EXPIRATION DATE (YYMMDD) ----
-exp_str = option_symbol[first_digit_idx:first_digit_idx+6]
-yy, mm, dd = int(exp_str[:2]), int(exp_str[2:4]), int(exp_str[4:6])
-expiration_date = datetime.datetime(2000 + yy, mm, dd)
-
-
-# ---- PARSE OPTION TYPE (C or P) ----
-opt_type_char = option_symbol[first_digit_idx+6]
-option_type = 'call' if opt_type_char == 'C' else 'put'
-
-
-# ---- PARSE STRIKE (last digits → float dollars) ----
-strike_str = option_symbol[first_digit_idx+7:]
-K = int(strike_str) / 1000.0
+# ---- PARSE OPTION SYMBOL ----
+parsed_data = OptionHedger.parse_option_symbol(c_option_symbol)
+underlying_sym = parsed_data['underlying_sym']
+expiration_date = parsed_data['expiration_date']
+option_type = parsed_data['option_type']
+K = parsed_data['strike']
 
 
 start_ms, end_ms = OptionHedger.get_day_bounds_unix_ms(date_str)
@@ -64,7 +52,7 @@ client = RESTClient(api_key=API_KEY)
 
 # ---- FETCH 1-MINUTE AGGREGATES FOR OPTION & UNDERLYING ----
 opt_resp = client.get_aggs(
-    ticker=option_symbol,
+    ticker=c_option_symbol,
     multiplier=1,
     timespan="minute",
     from_=start_ms,
@@ -113,7 +101,7 @@ underlying_prices = merged.set_index('dt')['stk_close'].copy()
 # ---- BUILD option_prices: MultiIndex DataFrame ----
 # Index = (dt, option_symbol), Columns = ['mid_price', 'strike', 'expiry', 'type']
 option_index = pd.MultiIndex.from_tuples(
-    [(row.dt, option_symbol) for row in merged.itertuples()],
+    [(row.dt, c_option_symbol) for row in merged.itertuples()],
     names=['timestamp','contract_id']
 )
 option_prices = pd.DataFrame(index=option_index, columns=['mid_price','strike','expiry','type'])
@@ -135,11 +123,11 @@ hedger = OptionHedger(
 
 # ---- OPEN AN INITIAL STRADDLE AT t0 (1 CALL + 1 PUT) ----
 t0 = hedger.current_timestamp
-hedger.open_position(timestamp=t0, contract_id=option_symbol, quantity=1)  # long 1 CALL
-hedger.open_position(timestamp=t0, contract_id=option_symbol, quantity=1)  # long 1 PUT
+hedger.open_position(timestamp=t0, contract_id=c_option_symbol, quantity=1)  # long 1 CALL
+hedger.open_position(timestamp=t0, contract_id=p_option_symbol, quantity=1)  # long 1 PUT
 
 print(f"Opened straddle at {t0}:")
-print(f"  Contract: {option_symbol}, Strike: {K}, Expiry: {expiration_date.date()}")
+print(f"  Contract: {c_option_symbol}, Strike: {K}, Expiry: {expiration_date.date()}")
 print(f"  Underlying Price: ${underlying_prices.loc[t0]:.2f}")
 print("  Starting hedged shares:", hedger.hedged_shares)
 print("  Starting cash balance: $%.2f" % hedger.cash)
