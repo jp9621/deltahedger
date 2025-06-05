@@ -123,8 +123,9 @@ class OptionHedger:
             expiry = leg['expiry']
             otype  = leg['type']
 
-            # Time‐to‐maturity in years, assuming 252 trading days:
-            T = max((expiry - t).days, 0) / 252
+            # Time‐to‐maturity in years, using ms timestamps (same as in _compute_implied_vols):
+            expiry_ms = int(expiry.timestamp() * 1000)
+            T = max((expiry_ms - t) / (1000 * 3600 * 24 * 365), 0)
 
             if T <= 0:
                 # Contract has expired → delta is intrinsic (0 or ±1)

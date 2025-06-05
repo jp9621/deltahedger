@@ -167,7 +167,7 @@ hedger = OptionHedger(
     option_prices=option_prices,
     r=r,
     q=0.0,
-    delta_tolerance=0.01
+    delta_tolerance=0.10
 )
 
 # Find all timestamps where both call and put have data, after first valid stock price
@@ -188,6 +188,11 @@ print(f"\nOpening straddle at timestamp {t0}:")
 print(f"  Call: {c_option_symbol}, Strike: {call_data['strike']}, Expiry: {call_data['expiration_date'].date()}")
 print(f"  Put: {p_option_symbol}, Strike: {put_data['strike']}, Expiry: {put_data['expiration_date'].date()}")
 print(f"  Underlying Price: ${underlying_prices.loc[t0]:.2f}")
+
+# Open the straddle positions
+hedger.open_position(t0, c_option_symbol, 1)  # Long 1 call
+# hedger.open_position(t0, p_option_symbol, 1)  # Long 1 put
+
 print("  Starting hedged shares:", hedger.hedged_shares)
 print("  Starting cash balance: $%.2f" % hedger.cash)
 
