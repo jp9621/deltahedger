@@ -141,7 +141,7 @@ class OptionHedger:
             net_delta += qty * delta_i
 
         # Subtract the current hedge position
-        net_delta -= self.hedged_shares
+        net_delta += self.hedged_shares
 
         # 4) If |net_delta| > tolerance, execute hedge
         delta_to_trade = 0.0

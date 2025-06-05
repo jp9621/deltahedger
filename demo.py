@@ -154,20 +154,13 @@ for timestamp in valid_timestamps:
 options_df = pd.DataFrame(option_data)
 option_prices = options_df.set_index(['timestamp', 'contract_id'])
 
-print(f"First valid stock timestamp (ms): {first_valid_stock_ts}")
-print(f"Stock price at first timestamp: {stk_prices.loc[first_valid_stock_ts, 'price']}")
-print("\nUnderlying prices head:")
-print(underlying_prices.head())
-print("\nOption prices head:")
-print(option_prices.head())
-
 # ---- INSTANTIATE THE OptionHedger ----
 hedger = OptionHedger(
     underlying_prices=underlying_prices,
     option_prices=option_prices,
     r=r,
     q=0.0,
-    delta_tolerance=0.10
+    delta_tolerance=0.01
 )
 
 # Find all timestamps where both call and put have data, after first valid stock price
@@ -191,7 +184,7 @@ print(f"  Underlying Price: ${underlying_prices.loc[t0]:.2f}")
 
 # Open the straddle positions
 hedger.open_position(t0, c_option_symbol, 1)  # Long 1 call
-# hedger.open_position(t0, p_option_symbol, 1)  # Long 1 put
+hedger.open_position(t0, p_option_symbol, 1)  # Long 1 put
 
 print("  Starting hedged shares:", hedger.hedged_shares)
 print("  Starting cash balance: $%.2f" % hedger.cash)
