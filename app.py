@@ -9,6 +9,28 @@ import plotly.express as px
 from polygon import RESTClient
 from OptionHedger import OptionHedger
 
+API_KEY = 'w2chIPf4EUplQqQv6b8Nxnn8GQV8pfGC'
+# Set page config to wide mode and create a more professional look
+st.set_page_config(layout="wide", page_title="Delta-Hedger Demo")
+
+# Add custom CSS to maintain container heights and prevent jumping
+st.markdown("""
+    <style>
+        .stPlotlyChart {
+            min-height: 400px;
+        }
+        .console-box {
+            background-color: black;
+            color: #32CD32;
+            font-family: monospace;
+            padding: 10px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: scroll;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # --------------------------------
 # 1) Helper: parse "Month Year" → date range in milliseconds
 # --------------------------------
@@ -98,19 +120,44 @@ def pick_atm_straddle(ticker: str,
 # --------------------------------
 st.title("Delta-Hedger Demo")
 
-# 4.1) API key
-API_KEY = 'w2chIPf4EUplQqQv6b8Nxnn8GQV8pfGC'
-
-# 4.2) Inputs: Month & Ticker
-month_str = st.text_input("Historical Month (e.g. January 2024 or 2024-01)")
-ticker    = st.text_input("Underlying Ticker (e.g. AAPL)").upper()
+# Create a container for input controls
+with st.container():
+    col1, col2, col3 = st.columns([2, 2, 1])
+    with col1:
+        month_str = st.text_input("Historical Month (e.g. January 2024 or 2024-01)")
+    with col2:
+        ticker = st.text_input("Underlying Ticker (e.g. AAPL)").upper()
+    with col3:
+        run_button = st.button("Run Demo", type="primary")
 
 if not month_str or not ticker:
     st.info("Enter both a month and a ticker, then click Run Demo.")
     st.stop()
 
-# 4.3) Run Button
-if st.button("Run Demo"):
+# Create fixed containers for charts and console
+chart_container = st.container()
+with chart_container:
+    # Create two columns for the charts
+    col1, col2 = st.columns(2)
+    
+    # Initialize fixed containers in first column
+    with col1:
+        st.subheader("Underlying Price (4H Bars)")
+        price_chart_container = st.empty()
+        
+        st.subheader("Implied Volatility")
+        iv_chart_container = st.empty()
+
+    # Initialize fixed containers in second column
+    with col2:
+        st.subheader("Δ Pre-Hedge vs. Post-Hedge")
+        delta_chart_container = st.empty()
+        
+        st.subheader("Console Output")
+        console_container = st.empty()
+
+# Run Button logic
+if run_button:
     try:
         # 5.1) Parse month → date range in milliseconds
         start_ms, end_ms = month_to_date_range(month_str)
@@ -214,33 +261,27 @@ if st.button("Run Demo"):
 
         st.success(f"Opened ATM straddle at {datetime.fromtimestamp(t0/1000)} → Sₜ₀=${underlying_series[t0]:.2f}, Strike={atm_strike}")
 
-        # 6) Prepare containers for real-time animation
-        price_chart = st.empty()
-        delta_chart = st.empty()
-        iv_chart    = st.empty()
-        console     = st.empty()
-
         # Lists to accumulate values as we step
-        ts_list         = []
-        price_list      = []
-        delta_pre_list  = []
-        delta_post_list = []  # New list for post-hedge delta
+        ts_list = []
+        price_list = []
+        delta_pre_list = []
+        delta_post_list = []
         delta_traded_list = []
-        hedge_list      = []
-        mtm_list        = []
-        iv_list         = []
+        hedge_list = []
+        mtm_list = []
+        iv_list = []
 
-        # 7) Simulation loop: Step through each 4H bar
+        # 7) Simulation loop
         total_steps = len(hedger.underlying_prices) - t0_idx
         st.info(f"Stepping through {total_steps} 4-hour bars...")
 
         for step in range(total_steps - 1):
             hedger.forward()
             row = hedger.timeline[-1]
-            t_ms = row["timestamp"]  # Now in milliseconds
+            t_ms = row["timestamp"]
             S_t = row["S_t"]
             net_pre = row["net_delta_pre_hedge"]
-            net_post = row["net_delta_post_hedge"]  # Get post-hedge delta
+            net_post = row["net_delta_post_hedge"]
             delta_traded = row["delta_traded"]
             hedged_shares = row["hedged_shares"]
             mtm = row["mtm_pnl"]
@@ -258,52 +299,46 @@ if st.button("Run Demo"):
             else:
                 iv_avg = float("nan")
 
-            # 8) Append to our lists
+            # 8) Append to lists
             ts_list.append(t_ms)
             price_list.append(S_t)
             delta_pre_list.append(net_pre)
-            delta_post_list.append(net_post)  # Store post-hedge delta
+            delta_post_list.append(net_post)
             delta_traded_list.append(delta_traded)
             hedge_list.append(hedged_shares)
             mtm_list.append(mtm)
             iv_list.append(iv_avg)
 
-            # 9) Update the three charts and console in real time
-            #  9a) Price chart
-            with price_chart:
-                st.subheader("Underlying Price (4H Bars)")
-                df_price = pd.DataFrame({
-                    "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
-                    "price": price_list
-                }).set_index("timestamp")
-                fig_price = px.line(df_price, labels={"timestamp":"Time", "price":"Price"}, 
-                                    title="Underlying Price")
-                st.plotly_chart(fig_price, use_container_width=True)
+            # 9) Update charts in their fixed containers
+            # 9a) Price chart
+            df_price = pd.DataFrame({
+                "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
+                "price": price_list
+            }).set_index("timestamp")
+            fig_price = px.line(df_price, labels={"timestamp":"Time", "price":"Price"})
+            fig_price.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
+            price_chart_container.plotly_chart(fig_price, use_container_width=True)
 
-            #  9b) Delta chart (pre vs post)
-            with delta_chart:
-                st.subheader("Δ pre-hedge vs. Δ post-hedge")
-                df_delta = pd.DataFrame({
-                    "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
-                    "delta_pre": delta_pre_list,
-                    "delta_post": delta_post_list  # Use actual post-hedge delta
-                }).set_index("timestamp")
-                fig_delta = px.line(df_delta, 
-                                    labels={"value":"Delta", "variable":"Legend"},
-                                    title="Net Δ Pre-Hedge vs. Post-Hedge")
-                st.plotly_chart(fig_delta, use_container_width=True)
+            # 9b) Delta chart
+            df_delta = pd.DataFrame({
+                "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
+                "delta_pre": delta_pre_list,
+                "delta_post": delta_post_list
+            }).set_index("timestamp")
+            fig_delta = px.line(df_delta, labels={"value":"Delta", "variable":"Legend"})
+            fig_delta.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
+            delta_chart_container.plotly_chart(fig_delta, use_container_width=True)
 
-            #  9c) IV chart
-            with iv_chart:
-                st.subheader("Implied Volatility (avg of call & put)")
-                df_iv = pd.DataFrame({
-                    "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
-                    "iv": iv_list
-                }).set_index("timestamp")
-                fig_iv = px.line(df_iv, labels={"iv":"Implied Vol"}, title="Implied Vol over Time")
-                st.plotly_chart(fig_iv, use_container_width=True)
+            # 9c) IV chart
+            df_iv = pd.DataFrame({
+                "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
+                "iv": iv_list
+            }).set_index("timestamp")
+            fig_iv = px.line(df_iv, labels={"iv":"Implied Vol"})
+            fig_iv.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
+            iv_chart_container.plotly_chart(fig_iv, use_container_width=True)
 
-            #  9d) Console
+            # 9d) Console with styled container
             t_str = datetime.fromtimestamp(t_ms/1000).strftime("%Y-%m-%d %H:%M")
             line = (
                 f"Step {step+1} @ {t_str}  |  "
@@ -317,7 +352,7 @@ if st.button("Run Demo"):
                 log_text = line
             else:
                 log_text += line
-            console.text(log_text)
+            console_container.markdown(f'<div class="console-box">{log_text}</div>', unsafe_allow_html=True)
 
             time.sleep(0.01)
 
