@@ -122,6 +122,9 @@ class OptionHedger:
             delta_to_trade = -net_delta
             self._execute_hedge_trade(t_ms, S_t, delta_to_trade)
 
+        # Calculate post-hedge delta
+        net_delta_post = net_delta + delta_to_trade
+
         # 5) Mark‐to‐market
         mtm_pnl = self._mark_to_market(t_ms, S_t, iv_dict)
 
@@ -130,6 +133,7 @@ class OptionHedger:
             'timestamp': t_ms,  # Now in milliseconds
             'S_t': S_t,
             'net_delta_pre_hedge': net_delta,
+            'net_delta_post_hedge': net_delta_post,
             'delta_traded': delta_to_trade,
             'hedged_shares': self.hedged_shares,
             'mtm_pnl': mtm_pnl

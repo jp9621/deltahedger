@@ -224,6 +224,7 @@ if st.button("Run Demo"):
         ts_list         = []
         price_list      = []
         delta_pre_list  = []
+        delta_post_list = []  # New list for post-hedge delta
         delta_traded_list = []
         hedge_list      = []
         mtm_list        = []
@@ -233,12 +234,13 @@ if st.button("Run Demo"):
         total_steps = len(hedger.underlying_prices) - t0_idx
         st.info(f"Stepping through {total_steps} 4-hour bars...")
 
-        for step in range(total_steps):
+        for step in range(total_steps - 1):
             hedger.forward()
             row = hedger.timeline[-1]
             t_ms = row["timestamp"]  # Now in milliseconds
             S_t = row["S_t"]
             net_pre = row["net_delta_pre_hedge"]
+            net_post = row["net_delta_post_hedge"]  # Get post-hedge delta
             delta_traded = row["delta_traded"]
             hedged_shares = row["hedged_shares"]
             mtm = row["mtm_pnl"]
@@ -260,6 +262,7 @@ if st.button("Run Demo"):
             ts_list.append(t_ms)
             price_list.append(S_t)
             delta_pre_list.append(net_pre)
+            delta_post_list.append(net_post)  # Store post-hedge delta
             delta_traded_list.append(delta_traded)
             hedge_list.append(hedged_shares)
             mtm_list.append(mtm)
@@ -283,11 +286,11 @@ if st.button("Run Demo"):
                 df_delta = pd.DataFrame({
                     "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
                     "delta_pre": delta_pre_list,
-                    "delta_post": [0.0]*len(ts_list)
+                    "delta_post": delta_post_list  # Use actual post-hedge delta
                 }).set_index("timestamp")
                 fig_delta = px.line(df_delta, 
                                     labels={"value":"Delta", "variable":"Legend"},
-                                    title="Net Δ Pre-Hedge (blue) vs. Post-Hedge = 0 (red)")
+                                    title="Net Δ Pre-Hedge vs. Post-Hedge")
                 st.plotly_chart(fig_delta, use_container_width=True)
 
             #  9c) IV chart
@@ -316,7 +319,7 @@ if st.button("Run Demo"):
                 log_text += line
             console.text(log_text)
 
-            time.sleep(0.5)
+            time.sleep(0.01)
 
         st.success("✅ Backtest complete!")
 
