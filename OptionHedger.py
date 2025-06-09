@@ -37,39 +37,30 @@ class OptionHedger:
               - 'expiry' (as integer milliseconds since epoch), 
               - 'type'   ('call' or 'put').
         """
-        # 1) Convert all timestamps to milliseconds since epoch
         self.underlying_prices = underlying_prices.copy()
         self.option_prices = option_prices.copy()
         
-        # Convert index timestamps to milliseconds
         self.underlying_prices.index = self.underlying_prices.index.astype(np.int64)
         
-        # Convert MultiIndex timestamps to milliseconds
         if isinstance(self.option_prices.index, pd.MultiIndex):
             timestamps = self.option_prices.index.get_level_values(0).astype(np.int64)
             contract_ids = self.option_prices.index.get_level_values(1)
             self.option_prices.index = pd.MultiIndex.from_arrays([timestamps, contract_ids])
         
-        # Convert expiry timestamps to milliseconds
         if isinstance(self.option_prices['expiry'].iloc[0], (pd.Timestamp, datetime.datetime)):
             self.option_prices['expiry'] = self.option_prices['expiry'].astype(np.int64)
 
-        # 2) Sort indexes
         self.underlying_prices = self.underlying_prices.sort_index()
         self.option_prices = self.option_prices.sort_index()
 
-        # 3) Risk parameters
         self.r = r
         self.q = q
 
-        # 4) Hedging tolerance
         self.delta_tolerance = delta_tolerance
 
-        # 5) Internal state - timestamps are now in milliseconds
         self.timestamps = list(self.underlying_prices.index)
         self.current_step = 0
 
-        # 6) Positions
         self.open_legs = []
         self.hedged_shares = 0.0
         self.cash = 0.0
@@ -83,24 +74,20 @@ class OptionHedger:
         if self.current_step >= len(self.timestamps):
             raise IndexError("Already at end of price series.")
 
-        # 1) Get current timestamp (in ms), S_t, and option chain
         t_ms = self.timestamps[self.current_step]
         S_t = self.underlying_prices.loc[t_ms]
         option_slice = self.option_prices.loc[t_ms]
 
-        # 2) For every open leg, compute its current delta using implied vol
         iv_dict = self._compute_implied_vols(option_slice, S_t)
 
-        # 3) Compute net delta of the portfolio
         net_delta = 0.0
         for leg in self.open_legs:
             cid = leg['contract_id']
             qty = leg['quantity']
             strike = leg['strike']
-            expiry_ms = leg['expiry']  # Already in milliseconds
+            expiry_ms = leg['expiry']
             otype = leg['type']
 
-            # Time‐to‐maturity in years
             T = max((expiry_ms - t_ms) / (1000 * 3600 * 24 * 365), 0)
 
             if T <= 0:
@@ -116,21 +103,17 @@ class OptionHedger:
 
         net_delta += self.hedged_shares
 
-        # 4) Execute hedge if needed
         delta_to_trade = 0.0
         if abs(net_delta) > self.delta_tolerance:
             delta_to_trade = -net_delta
             self._execute_hedge_trade(t_ms, S_t, delta_to_trade)
 
-        # Calculate post-hedge delta
         net_delta_post = net_delta + delta_to_trade
 
-        # 5) Mark‐to‐market
         mtm_pnl = self._mark_to_market(t_ms, S_t, iv_dict)
 
-        # 6) Record into timeline
         self.timeline.append({
-            'timestamp': t_ms,  # Now in milliseconds
+            'timestamp': t_ms,
             'S_t': S_t,
             'net_delta_pre_hedge': net_delta,
             'net_delta_post_hedge': net_delta_post,
@@ -139,7 +122,6 @@ class OptionHedger:
             'mtm_pnl': mtm_pnl
         })
 
-        # 7) Advance pointer
         self.current_step += 1
 
     def open_position(self, timestamp_ms: int, contract_id: str, quantity: int):
@@ -159,7 +141,7 @@ class OptionHedger:
             'contract_id': contract_id,
             'type': otype,
             'strike': strike,
-            'expiry': expiry_ms,  # Already in milliseconds
+            'expiry': expiry_ms,
             'entry_price': mid_price,
             'quantity': quantity
         })
@@ -172,7 +154,7 @@ class OptionHedger:
         for cid, row in option_slice.iterrows():
             price = row['mid_price']
             K = row['strike']
-            expiry_ms = row['expiry']  # Already in milliseconds
+            expiry_ms = row['expiry']
             otype = row['type']
 
             current_ms = self.timestamps[self.current_step]
@@ -202,7 +184,7 @@ class OptionHedger:
             cid = leg['contract_id']
             qty = leg['quantity']
             strike = leg['strike']
-            expiry_ms = leg['expiry']  # Already in milliseconds
+            expiry_ms = leg['expiry']
             entry = leg['entry_price']
             otype = leg['type']
 
@@ -239,16 +221,12 @@ class OptionHedger:
         Buys (if delta_to_trade > 0) or sells (if delta_to_trade < 0) that many shares of underlying.
         Updates self.hedged_shares, self.cash, and logs the trade.
         """
-        # Cash outflow/inflow:
-        #   If delta_to_trade > 0: we BUY shares → spend cash: delta_to_trade * S_t
-        #   If delta_to_trade < 0: we SELL shares → receive cash: -(delta_to_trade * S_t)
         self.cash -= delta_to_trade * S_t
         self.hedged_shares += delta_to_trade
 
-        # Log the hedge
         self.hedge_log.append({
             'timestamp': timestamp,
-            'delta_before': -(self.hedged_shares - delta_to_trade),  # previous net‐delta before trade
+            'delta_before': -(self.hedged_shares - delta_to_trade),
             'delta_traded': delta_to_trade,
             'price': S_t
         })
@@ -274,7 +252,6 @@ class OptionHedger:
         """
         r, q = self.r, self.q
         if T <= 0:
-            # Expired: delta is 0 or ±1
             return 1.0 if (otype == 'call' and S > K) else 0.0 \
                    if otype == 'call' else -1.0 if (otype == 'put' and S < K) else 0.0
 
@@ -334,20 +311,16 @@ class OptionHedger:
         dict
             A dictionary containing 'underlying_sym', 'expiration_date', 'option_type', and 'strike'.
         """
-        # Parse underlying symbol (chars until first digit)
         first_digit_idx = re.search(r'\d', option_symbol).start()
         underlying_sym = option_symbol[2:first_digit_idx]
 
-        # Parse expiration date (YYMMDD)
         exp_str = option_symbol[first_digit_idx:first_digit_idx+6]
         yy, mm, dd = int(exp_str[:2]), int(exp_str[2:4]), int(exp_str[4:6])
         expiration_date = datetime.datetime(2000 + yy, mm, dd)
 
-        # Parse option type (C or P)
         opt_type_char = option_symbol[first_digit_idx+6]
         option_type = 'call' if opt_type_char == 'C' else 'put'
 
-        # Parse strike (last digits → float dollars)
         strike_str = option_symbol[first_digit_idx+7:]
         strike = int(strike_str) / 1000.0
 
