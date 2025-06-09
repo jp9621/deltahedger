@@ -11,7 +11,7 @@ from OptionHedger import OptionHedger
 
 API_KEY = 'w2chIPf4EUplQqQv6b8Nxnn8GQV8pfGC'
 # Set page config to wide mode and create a more professional look
-st.set_page_config(layout="wide", page_title="Delta-Hedger Demo")
+st.set_page_config(layout="wide", page_title="Delta Hedger Demo")
 
 # Add custom CSS to maintain container heights and prevent jumping
 st.markdown("""
@@ -119,7 +119,7 @@ def pick_atm_straddle(ticker: str,
 # --------------------------------
 # 4) Streamlit UI
 # --------------------------------
-st.title("Delta-Hedger Demo")
+st.title("Delta Hedger Demo")
 
 # Create a container for input controls
 with st.container():
@@ -143,7 +143,7 @@ with chart_container:
     
     # Initialize fixed containers in first column
     with col1:
-        st.subheader("Underlying Price (4H Bars)")
+        st.subheader("Underlying Price")
         price_chart_container = st.empty()
         
         st.subheader("Implied Volatility")
@@ -248,7 +248,7 @@ if run_button:
             option_prices=options_df,
             r=0.01,
             q=0.0,
-            delta_tolerance=0.01
+            delta_tolerance=0.02
         )
 
         # 5.7) Set initial timestamp
@@ -311,7 +311,7 @@ if run_button:
 
         # 7) Simulation loop
         total_steps = len(hedger.underlying_prices) - t0_idx
-        st.info(f"Stepping through {total_steps} 4-hour bars...")
+        st.info(f"Stepping through {total_steps} steps...")
         
         # Update every N steps (batch updates)
         UPDATE_FREQUENCY = 5
@@ -370,7 +370,7 @@ if run_button:
                 step_count += 1
                 # Update price chart using efficient update method
                 fig_price.data = []
-                fig_price.add_scatter(x=ts_list, y=price_list, name="Price", line=dict(color='blue', width=1))
+                fig_price.add_scatter(x=ts_list, y=price_list, name="Price", line=dict(color='blue', width=1.5))
                 price_chart_container.plotly_chart(fig_price, use_container_width=True, key=f"price_chart_{step_count}")
 
                 # Update delta chart
