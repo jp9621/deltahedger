@@ -270,11 +270,52 @@ if run_button:
         hedge_list = []
         mtm_list = []
         iv_list = []
+        log_text = ""
+
+        # Create the initial empty figures
+        df_empty = pd.DataFrame({"timestamp": [], "value": []}).set_index("timestamp")
+        
+        # Initialize price chart
+        fig_price = px.line(df_empty, labels={"timestamp":"Time", "value":"Price"})
+        fig_price.update_layout(
+            height=300, 
+            margin=dict(t=0, b=0, l=0, r=0),
+            uirevision=True,  # Prevent UI elements from resetting
+            xaxis_range=[start_date, end_date],  # Fix x-axis range
+            showlegend=False
+        )
+        price_chart_container.plotly_chart(fig_price, use_container_width=True, key="price_chart_init")
+
+        # Initialize delta chart
+        fig_delta = px.line(df_empty, labels={"timestamp":"Time", "value":"Delta"})
+        fig_delta.update_layout(
+            height=300, 
+            margin=dict(t=0, b=0, l=0, r=0),
+            uirevision=True,
+            xaxis_range=[start_date, end_date],
+            showlegend=True
+        )
+        delta_chart_container.plotly_chart(fig_delta, use_container_width=True, key="delta_chart_init")
+
+        # Initialize IV chart
+        fig_iv = px.line(df_empty, labels={"timestamp":"Time", "value":"IV"})
+        fig_iv.update_layout(
+            height=300, 
+            margin=dict(t=0, b=0, l=0, r=0),
+            uirevision=True,
+            xaxis_range=[start_date, end_date],
+            showlegend=False
+        )
+        iv_chart_container.plotly_chart(fig_iv, use_container_width=True, key="iv_chart_init")
 
         # 7) Simulation loop
         total_steps = len(hedger.underlying_prices) - t0_idx
         st.info(f"Stepping through {total_steps} 4-hour bars...")
-
+        
+        # Update every N steps (batch updates)
+        UPDATE_FREQUENCY = 5
+        step_count = 0  # Counter for unique keys
+        
         for step in range(total_steps - 1):
             hedger.forward()
             row = hedger.timeline[-1]
@@ -300,7 +341,8 @@ if run_button:
                 iv_avg = float("nan")
 
             # 8) Append to lists
-            ts_list.append(t_ms)
+            ts_dt = datetime.fromtimestamp(t_ms/1000)
+            ts_list.append(ts_dt)
             price_list.append(S_t)
             delta_pre_list.append(net_pre)
             delta_post_list.append(net_post)
@@ -309,37 +351,8 @@ if run_button:
             mtm_list.append(mtm)
             iv_list.append(iv_avg)
 
-            # 9) Update charts in their fixed containers
-            # 9a) Price chart
-            df_price = pd.DataFrame({
-                "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
-                "price": price_list
-            }).set_index("timestamp")
-            fig_price = px.line(df_price, labels={"timestamp":"Time", "price":"Price"})
-            fig_price.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
-            price_chart_container.plotly_chart(fig_price, use_container_width=True)
-
-            # 9b) Delta chart
-            df_delta = pd.DataFrame({
-                "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
-                "delta_pre": delta_pre_list,
-                "delta_post": delta_post_list
-            }).set_index("timestamp")
-            fig_delta = px.line(df_delta, labels={"value":"Delta", "variable":"Legend"})
-            fig_delta.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
-            delta_chart_container.plotly_chart(fig_delta, use_container_width=True)
-
-            # 9c) IV chart
-            df_iv = pd.DataFrame({
-                "timestamp": [datetime.fromtimestamp(ts/1000) for ts in ts_list],
-                "iv": iv_list
-            }).set_index("timestamp")
-            fig_iv = px.line(df_iv, labels={"iv":"Implied Vol"})
-            fig_iv.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
-            iv_chart_container.plotly_chart(fig_iv, use_container_width=True)
-
-            # 9d) Console with styled container
-            t_str = datetime.fromtimestamp(t_ms/1000).strftime("%Y-%m-%d %H:%M")
+            # Update console text
+            t_str = ts_dt.strftime("%Y-%m-%d %H:%M")
             line = (
                 f"Step {step+1} @ {t_str}  |  "
                 f"Sₜ=${S_t:.2f}  |  "
@@ -348,13 +361,31 @@ if run_button:
                 f"HedgeShares={hedged_shares:.4f}  |  "
                 f"MTM=${mtm:.2f}\n"
             )
-            if step == 0:
-                log_text = line
-            else:
-                log_text += line
-            console_container.markdown(f'<div class="console-box">{log_text}</div>', unsafe_allow_html=True)
+            log_text += line
 
-            time.sleep(0.01)
+            # Only update visualizations every N steps or on the last step
+            if step % UPDATE_FREQUENCY == 0 or step == total_steps - 2:
+                step_count += 1
+                # Update price chart using efficient update method
+                fig_price.data = []
+                fig_price.add_scatter(x=ts_list, y=price_list, name="Price")
+                price_chart_container.plotly_chart(fig_price, use_container_width=True, key=f"price_chart_{step_count}")
+
+                # Update delta chart
+                fig_delta.data = []
+                fig_delta.add_scatter(x=ts_list, y=delta_pre_list, name="Pre-Hedge")
+                fig_delta.add_scatter(x=ts_list, y=delta_post_list, name="Post-Hedge")
+                delta_chart_container.plotly_chart(fig_delta, use_container_width=True, key=f"delta_chart_{step_count}")
+
+                # Update IV chart
+                fig_iv.data = []
+                fig_iv.add_scatter(x=ts_list, y=iv_list, name="IV")
+                iv_chart_container.plotly_chart(fig_iv, use_container_width=True, key=f"iv_chart_{step_count}")
+
+                # Update console
+                console_container.markdown(f'<div class="console-box">{log_text}</div>', unsafe_allow_html=True)
+
+            time.sleep(0.1)
 
         st.success("✅ Backtest complete!")
 
