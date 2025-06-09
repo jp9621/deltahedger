@@ -20,13 +20,14 @@ st.markdown("""
             min-height: 400px;
         }
         .console-box {
-            background-color: black;
-            color: #32CD32;
+            background-color: #F0F2F6;
+            color: #262730;
             font-family: monospace;
             padding: 10px;
             border-radius: 5px;
             height: 200px;
             overflow-y: scroll;
+            border: 1px solid #E0E2E6;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -150,7 +151,7 @@ with chart_container:
 
     # Initialize fixed containers in second column
     with col2:
-        st.subheader("Δ Pre-Hedge vs. Post-Hedge")
+        st.subheader("Delta Pre-Hedge vs. Post-Hedge")
         delta_chart_container = st.empty()
         
         st.subheader("Console Output")
@@ -354,12 +355,13 @@ if run_button:
             # Update console text
             t_str = ts_dt.strftime("%Y-%m-%d %H:%M")
             line = (
-                f"Step {step+1} @ {t_str}  |  "
-                f"Sₜ=${S_t:.2f}  |  "
-                f"Δ_pre={net_pre:.4f}  |  "
-                f"Δ_traded={delta_traded:.4f}  |  "
-                f"HedgeShares={hedged_shares:.4f}  |  "
-                f"MTM=${mtm:.2f}\n"
+                f"step {step+1} @ {t_str}\n"
+                f"s_t=${S_t:.2f}\n"
+                f"delta_pre={net_pre:.4f}\n"
+                f"delta_traded={delta_traded:.4f}\n"
+                f"hedge_shares={hedged_shares:.4f}\n"
+                f"mtm=${mtm:.2f}\n"
+                f"--------------------------------\n"
             )
             log_text += line
 
@@ -368,26 +370,26 @@ if run_button:
                 step_count += 1
                 # Update price chart using efficient update method
                 fig_price.data = []
-                fig_price.add_scatter(x=ts_list, y=price_list, name="Price")
+                fig_price.add_scatter(x=ts_list, y=price_list, name="Price", line=dict(color='blue', width=1))
                 price_chart_container.plotly_chart(fig_price, use_container_width=True, key=f"price_chart_{step_count}")
 
                 # Update delta chart
                 fig_delta.data = []
-                fig_delta.add_scatter(x=ts_list, y=delta_pre_list, name="Pre-Hedge")
-                fig_delta.add_scatter(x=ts_list, y=delta_post_list, name="Post-Hedge")
+                fig_delta.add_scatter(x=ts_list, y=delta_pre_list, name="Pre-Hedge", line=dict(color='blue', width=1.5))
+                fig_delta.add_scatter(x=ts_list, y=delta_post_list, name="Post-Hedge", line=dict(color='orange', width=1.5))
                 delta_chart_container.plotly_chart(fig_delta, use_container_width=True, key=f"delta_chart_{step_count}")
 
                 # Update IV chart
                 fig_iv.data = []
-                fig_iv.add_scatter(x=ts_list, y=iv_list, name="IV")
+                fig_iv.add_scatter(x=ts_list, y=iv_list, name="IV", line=dict(color='blue', width=1.5))
                 iv_chart_container.plotly_chart(fig_iv, use_container_width=True, key=f"iv_chart_{step_count}")
 
                 # Update console
-                console_container.markdown(f'<div class="console-box">{log_text}</div>', unsafe_allow_html=True)
+                console_container.markdown(f'<div class="console-box" style="white-space: pre-wrap;">{log_text}</div>', unsafe_allow_html=True)
 
             time.sleep(0.1)
 
-        st.success("✅ Backtest complete!")
+        st.success("Demo complete!")
 
     except Exception as e:
         st.error(f"Error during backtest: {e}")
