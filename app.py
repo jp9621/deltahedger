@@ -15,9 +15,7 @@ if not API_KEY:
     """)
     st.stop()
 
-st.write(API_KEY)
-
-st.set_page_config(layout="wide", page_title="Delta Hedger Demo")
+st.set_page_config(layout="wide", page_title=API_KEY)
 
 st.markdown("""
     <style>
@@ -121,8 +119,6 @@ with st.container():
 if not month_str or not ticker:
     st.info("Enter both a month and a ticker, then click Run Demo.")
     st.stop()
-
-st.write(API_KEY)
 
 chart_container = st.container()
 with chart_container:
