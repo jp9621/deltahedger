@@ -105,7 +105,7 @@ def pick_atm_straddle(ticker: str,
 
     return c_symbol, p_symbol, atm_strike, expiry_ms
 
-st.title("Delta Hedger Demo")
+st.title(API_KEY)
 
 with st.container():
     col1, col2, col3 = st.columns([2, 2, 1])
