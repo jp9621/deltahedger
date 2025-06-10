@@ -122,6 +122,8 @@ if not month_str or not ticker:
     st.info("Enter both a month and a ticker, then click Run Demo.")
     st.stop()
 
+st.write(API_KEY)
+
 chart_container = st.container()
 with chart_container:
     col1, col2 = st.columns(2)
