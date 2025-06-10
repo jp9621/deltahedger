@@ -15,6 +15,8 @@ if not API_KEY:
     """)
     st.stop()
 
+st.write(API_KEY)
+
 st.set_page_config(layout="wide", page_title="Delta Hedger Demo")
 
 st.markdown("""
