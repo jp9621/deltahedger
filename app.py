@@ -2,13 +2,11 @@ import time
 import calendar
 from datetime import datetime
 import os
-from dotenv import load_dotenv
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 from polygon import RESTClient
 from OptionHedger import OptionHedger
-
 
 API_KEY = os.getenv('POLYGON_API_KEY')
 if not API_KEY:
