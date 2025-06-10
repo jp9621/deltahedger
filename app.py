@@ -112,9 +112,9 @@ st.title("Delta Hedger Demo")
 with st.container():
     col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
-        month_str = st.text_input("Historical Month (e.g. January 2024 or 2024-01)")
+        month_str = st.text_input("Historical Month (e.g. 2024-01)")
     with col2:
-        ticker = st.text_input("Underlying Ticker (e.g. AAPL)").upper()
+        ticker = st.text_input("Underlying Ticker (e.g. SPY)").upper()
     with col3:
         run_button = st.button("Run Demo", type="primary")
 
