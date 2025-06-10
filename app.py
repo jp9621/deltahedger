@@ -9,10 +9,7 @@ import plotly.express as px
 from polygon import RESTClient
 from OptionHedger import OptionHedger
 
-# Load environment variables
-load_dotenv()
 
-# Get API key from environment variable
 API_KEY = os.getenv('POLYGON_API_KEY')
 if not API_KEY:
     st.error("""
