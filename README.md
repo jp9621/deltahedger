@@ -2,7 +2,7 @@
 
 A Python implementation of a delta-neutral options hedging system using the Black-Scholes model.
 
-`https://deltahedgerdemo.streamlit.app/`
+https://deltahedgerdemo.streamlit.app/
 
 ## Overview
 
