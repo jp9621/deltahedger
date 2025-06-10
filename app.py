@@ -1,14 +1,29 @@
-
 import time
 import calendar
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 from polygon import RESTClient
 from OptionHedger import OptionHedger
 
-API_KEY = 'w2chIPf4EUplQqQv6b8Nxnn8GQV8pfGC'
+# Load environment variables
+load_dotenv()
+
+# Get API key from environment variable
+API_KEY = os.getenv('POLYGON_API_KEY')
+if not API_KEY:
+    st.error("""
+        No API key found! Please set up your environment variables:
+        1. Create a file named `.env` in the project root
+        2. Add this line to it: POLYGON_API_KEY=your_api_key_here
+        3. Replace 'your_api_key_here' with your actual Polygon.io API key
+        4. Restart the application
+    """)
+    st.stop()
+
 st.set_page_config(layout="wide", page_title="Delta Hedger Demo")
 
 st.markdown("""
