@@ -16,11 +16,7 @@ load_dotenv()
 API_KEY = os.getenv('POLYGON_API_KEY')
 if not API_KEY:
     st.error("""
-        No API key found! Please set up your environment variables:
-        1. Create a file named `.env` in the project root
-        2. Add this line to it: POLYGON_API_KEY=your_api_key_here
-        3. Replace 'your_api_key_here' with your actual Polygon.io API key
-        4. Restart the application
+        No API key found
     """)
     st.stop()
 
@@ -349,5 +345,5 @@ if run_button:
         st.success("Demo complete!")
 
     except Exception as e:
-        st.error(f"Error during backtest: {e}")
+        st.error(f"Error during demo: {e}")
         st.stop()
